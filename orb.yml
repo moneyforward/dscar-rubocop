@@ -2,7 +2,7 @@ version: 2.1
 
 description: Delta Rubocop Reports
 orbs:
-  dscar: naokikimura/dscar@dev:0.0.10
+  dscar: naokikimura/dscar@0.0.11
 executors:
   default:
     description: Use a CircleCI convenience image to analyze code statically
