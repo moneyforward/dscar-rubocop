@@ -1,19 +1,27 @@
 version: 2.1
 
 description: Delta Rubocop Reports
+
 orbs:
-  dscar: naokikimura/dscar@0.0.11
+  dscar: naokikimura/dscar@0.1.0
+
 executors:
   default:
-    description: Use a CircleCI convenience image to analyze code statically
+    description: Default Rubocop execution environment
+    parameters:
+      docker-image:
+        description: Specify the image used to execute Rubocop
+        type: string
+        default: circleci/ruby
     docker:
-      - image: circleci/ruby:latest
+      - image: << parameters.docker-image >>
+
 commands:
   execute:
     description: Calculate the difference of Rubocop results between HEAD branch and BASE branch
     parameters:
-      analysis-prepare:
-        description: Specify the required steps before Rubocop if necessary
+      prepare-to-execute:
+        description: Specify the required steps before execute if necessary
         type: steps
         default: []
       analysis-command-version:
@@ -34,30 +42,40 @@ commands:
         enum: ["junit", "RuboCop::Formatter::JUnitFormatter"]
         default: "junit"
     steps:
-      - run: sudo gem install rubocop rubocop-performance rubocop-rails
       - when:
           condition: << parameters.analysis-command-version >>
           steps:
-            - run: "sudo gem install rubocop:0.80 rubocop:<< parameters.analysis-command-version >>"
             - dscar/execute:
+                prepare-to-execute:
+                  - run:
+                    environment:
+                      GEMS: rubocop:0.80 rubocop:<< parameters.analysis-command-version >> rubocop rubocop-performance rubocop-rails
+                    command: sudo gem install $GEMS
+                  - steps: << parameters.prepare-to-execute >>
                 analysis-name: Rubocop
-                analysis-command: rubocop _<< parameters.analysis-command-version >>_
-                analysis-prepare: << parameters.analysis-prepare >>
-                analysis-arguments: << parameters.analysis-arguments >> -f << parameters.analysis-result-format >> -C false
-                calculate-options: --test-case-key='concat(@classname,"#",@name,"=>",normalize-space())'
+                analysis-command: rubocop
+                analysis-arguments: |
+                  _<< parameters.analysis-command-version >>_
+                  << parameters.analysis-arguments >>
+                  -f << parameters.analysis-result-format >>
+                  -C false
+                calculate-options: --test-case-key=concat(@classname,"#",@name,"=>",normalize-space())
                 test-results-path: << parameters.test-results-path >>
-                analysis-exit-code-threshold: 2
       - unless:
           condition: << parameters.analysis-command-version >>
           steps:
             - dscar/execute:
+                prepare-to-execute:
+                  - run: sudo gem install rubocop rubocop-performance rubocop-rails
+                  - steps: << parameters.prepare-to-execute >>
                 analysis-name: Rubocop
                 analysis-command: rubocop
-                analysis-prepare: << parameters.analysis-prepare >>
-                analysis-arguments: << parameters.analysis-arguments >> -f << parameters.analysis-result-format >> -C false
-                calculate-options: --test-case-key='concat(@classname,"#",@name,"=>",normalize-space())'
+                analysis-arguments: |
+                  << parameters.analysis-arguments >>
+                  -f << parameters.analysis-result-format >>
+                  -C false
+                calculate-options: --test-case-key=concat(@classname,"#",@name,"=>",normalize-space())
                 test-results-path: << parameters.test-results-path >>
-                analysis-exit-code-threshold: 2
 
 jobs:
   execute:
@@ -66,8 +84,8 @@ jobs:
       executor:
         type: executor
         default: default
-      analysis-prepare:
-        description: Specify the required steps before rubocop if necessary
+      prepare-to-execute:
+        description: Specify the required steps before execute if necessary
         type: steps
         default: []
       analysis-command-version:
@@ -90,7 +108,7 @@ jobs:
     executor: << parameters.executor >>
     steps:
       - execute:
-          analysis-prepare: << parameters.analysis-prepare >>
+          prepare-to-execute: << parameters.prepare-to-execute >>
           analysis-command-version: << parameters.analysis-command-version >>
           analysis-arguments: << parameters.analysis-arguments >>
           test-results-path: << parameters.test-results-path >>
@@ -103,7 +121,7 @@ examples:
     usage:
       version: 2.1
       orbs:
-        dscar: naokikimura/dscar-rubocop@0.0.1
+        dscar: naokikimura/dscar-rubocop@0.0.4
       workflows:
         analyze-code-statically:
           jobs:
@@ -115,18 +133,16 @@ examples:
     usage:
       version: 2.1
       orbs:
-        dscar: naokikimura/dscar-rubocop@0.0.1
-      executors:
-        ruby-2_7:
-          docker:
-            - image: circleci/ruby:2.7.0
+        dscar: naokikimura/dscar-rubocop@0.0.4
       workflows:
         analyze-code-statically:
           jobs:
             - dscar-rubocop/execute:
                 name: rubocop
-                executor: ruby-2_7
-                analysis-prepare:
+                executor:
+                  name: dscar-rubocop/default
+                  docker-image: circleci/ruby:2.7.0
+                prepare-to-execute:
                     - run:
                         command: |
                           sudo gem uninstall -a rubocop-performance
