@@ -3,7 +3,7 @@ version: 2.1
 description: Delta Rubocop Reports
 
 orbs:
-  dscar: naokikimura/dscar@0.1.0
+  dscar: naokikimura/dscar@0.5.0
 
 executors:
   default:
@@ -12,18 +12,18 @@ executors:
       docker-image:
         description: Specify the image used to execute Rubocop
         type: string
-        default: circleci/ruby
+        default: circleci/ruby:latest-node
     docker:
       - image: << parameters.docker-image >>
 
 commands:
-  execute:
-    description: Calculate the difference of Rubocop results between HEAD branch and BASE branch
+  analyze:
+    description: Analyze code statically using Rubocop
     parameters:
-      prepare-to-execute:
-        description: Specify the required steps before execute if necessary
-        type: steps
-        default: []
+      starting-points:
+        description: Specify the path of starting to search for files to analyze (Multiple paths can be specified by separating them with line feed)
+        type: string
+        default: "."
       analysis-command-version:
         description: The command version used for analysis
         type: string
@@ -32,87 +32,205 @@ commands:
         description: Arguments of rubocop command
         type: string
         default: ""
-      test-results-path:
-        description: Specify the value of the path parameter in the store_test_results step if you need to change it
-        type: string
-        default: "/tmp/test-results"
       analysis-result-format:
         description: Specify "RuboCop::Formatter::JUnitFormatter" if you want to use a non-standard formatter
         type: enum
         enum: ["junit", "RuboCop::Formatter::JUnitFormatter"]
         default: "junit"
+      prepare:
+        description: Specify the required steps before analysis if necessary
+        type: steps
+        default:
+          - run: sudo gem install rubocop rubocop-performance rubocop-rails
+      no-output-timeout:
+        description: Elapsed time the command can run without output. The string is a decimal with unit suffix, such as “20m”, “1.25h”, “5s”
+        type: string
+        default: 10m
+      redirecting-output:
+        description: Specify "/dev/null" if you do not want to display the analysis results on the standard output
+        type: enum
+        enum: ["/dev/stdout", "/dev/stderr", "/dev/null"]
+        default: "/dev/null"
     steps:
       - when:
           condition: << parameters.analysis-command-version >>
           steps:
-            - dscar/execute:
-                prepare-to-execute:
-                  - run:
-                    environment:
-                      GEMS: rubocop:0.80 rubocop:<< parameters.analysis-command-version >> rubocop rubocop-performance rubocop-rails
-                    command: sudo gem install $GEMS
-                  - steps: << parameters.prepare-to-execute >>
-                analysis-name: Rubocop
+            - dscar/analyze:
+                step-name: Analyze code statically using Rubocop
                 analysis-command: rubocop
                 analysis-arguments: |
-                  _<< parameters.analysis-command-version >>_
-                  << parameters.analysis-arguments >>
-                  -f << parameters.analysis-result-format >>
-                  -C false
-                calculate-options: --test-case-key=concat(@classname,"#",@name,"=>",normalize-space())
-                test-results-path: << parameters.test-results-path >>
+                        _<< parameters.analysis-command-version >>_
+                        << parameters.analysis-arguments >>
+                        -f << parameters.analysis-result-format >>
+                        -C false
+                starting-points: << parameters.starting-points >>
+                prepare: << parameters.prepare >>
+                no-output-timeout: << parameters.no-output-timeout >>
+                redirecting-output: << parameters.redirecting-output >>
       - unless:
           condition: << parameters.analysis-command-version >>
           steps:
-            - dscar/execute:
-                prepare-to-execute:
-                  - run: sudo gem install rubocop rubocop-performance rubocop-rails
-                  - steps: << parameters.prepare-to-execute >>
-                analysis-name: Rubocop
+            - dscar/analyze:
+                step-name: Analyze code statically using Rubocop
                 analysis-command: rubocop
                 analysis-arguments: |
-                  << parameters.analysis-arguments >>
-                  -f << parameters.analysis-result-format >>
-                  -C false
-                calculate-options: --test-case-key=concat(@classname,"#",@name,"=>",normalize-space())
-                test-results-path: << parameters.test-results-path >>
+                        << parameters.analysis-arguments >>
+                        -f << parameters.analysis-result-format >>
+                        -C false
+                starting-points: << parameters.starting-points >>
+                prepare: << parameters.prepare >>
+                no-output-timeout: << parameters.no-output-timeout >>
+                redirecting-output: << parameters.redirecting-output >>
+  calculate:
+    description: |
+      Calculate the difference between the analysis results
 
-jobs:
+      Use the [junit-reports-combiner][1] command to calculate the difference
+
+      [1]: https://www.npmjs.com/package/junit-reports-combiner
+    parameters:
+      first-result-path:
+        description: Path of the file to use as the minuend
+        type: string
+        default: "HEAD-analysis-results.xml"
+      second-result-path:
+        description: Path of the file to use as the subtrahend
+        type: string
+        default: "BASE-analysis-results.xml"
+      delta-result-path:
+        description: Path to save difference of analysis results
+        type: string
+        default: "/dev/null"
+      should-install-node_js:
+        description: Specify true if the execution environment does not have Node.js installed
+        type: boolean
+        default: false
+    steps:
+      - dscar/calculate:
+          options: --test-case-key=concat(@classname,"#",@name,"=>",normalize-space())
+          first-result-path: << parameters.first-result-path >>
+          second-result-path: << parameters.second-result-path >>
+          delta-result-path: << parameters.delta-result-path >>
+          should-install-node_js: << parameters.should-install-node_js >>
   execute:
     description: Calculate the difference of Rubocop results between HEAD branch and BASE branch
     parameters:
-      executor:
-        type: executor
-        default: default
-      prepare-to-execute:
-        description: Specify the required steps before execute if necessary
+      analyze:
+        description: Specify analysis steps
         type: steps
-        default: []
-      analysis-command-version:
-        description: The command version used for analysis
-        type: string
-        default: ""
-      analysis-arguments:
-        description: Arguments of rubocop command
-        type: string
-        default: ""
+        default:
+          - analyze:
+              prepare: []
+      calculate:
+        description: Specify the steps for calculating the difference
+        type: steps
+        default:
+          - calculate
       test-results-path:
         description: Specify the value of the path parameter in the store_test_results step if you need to change it
         type: string
         default: "/tmp/test-results"
-      analysis-result-format:
-        description: Specify "RuboCop::Formatter::JUnitFormatter" if you want to use a non-standard formatter
-        type: enum
-        enum: ["junit", "RuboCop::Formatter::JUnitFormatter"]
-        default: "junit"
+    steps:
+      - run: sudo gem install rubocop rubocop-performance rubocop-rails
+      - dscar/execute:
+          analysis-name: Rubocop
+          analyze: << parameters.analyze >>
+          calculate: << parameters.calculate >>
+          test-results-path: << parameters.test-results-path >>
+
+jobs:
+  analyze:
+    description: Analyze code statically using Rubocop
+    parameters:
+      executor:
+        description: Specify the image used to execute analysis
+        type: executor
+        default: default
+      is-target-branch-base:
+        description: Check-out the BASE branch if true is specified
+        type: boolean
+        default: false
+      analyze:
+        description: Specify analysis steps
+        type: steps
+        default:
+          - analyze
+      analysis-results-path:
+        description: Specify the path to save the analysis results if you need to change it
+        type: string
+        default: "/tmp/analysis-results"
+    executor: << parameters.executor >>
+    steps:
+      - dscar/set-analysis-result-path:
+          analysis-name: Rubocop
+          analysis-results-path: << parameters.analysis-results-path >>
+          is-target-branch-base: << parameters.is-target-branch-base >>
+      - dscar/checkout-analysis-target:
+          is-target-branch-base: << parameters.is-target-branch-base >>
+      - steps: << parameters.analyze >>
+      - store_test_results:
+          path: << parameters.analysis-results-path >>
+  calculate:
+    description: |
+      Calculate the difference between the analysis results
+
+      Use the [junit-reports-combiner][1] command to calculate the difference
+
+      [1]: https://www.npmjs.com/package/junit-reports-combiner
+    parameters:
+      executor:
+        description: Specify the image used to execute analysis
+        type: executor
+        default: default
+      calculate:
+        description: Specify the steps for calculating the difference
+        type: steps
+        default:
+          - calculate
+      analysis-results-path:
+        description: Specify the path to save the analysis results if you need to change it
+        type: string
+        default: "/tmp/analysis-results"
+      test-results-path:
+        description: Specify the value of the path parameter in the store_test_results step if you need to change it
+        type: string
+        default: "/tmp/test-results"
+    executor: << parameters.executor >>
+    steps:
+      - dscar/set-result-paths:
+          analysis-name: Rubocop
+          analysis-results-path: << parameters.analysis-results-path >>
+          test-results-path: << parameters.test-results-path >>
+      - steps: << parameters.calculate >>
+      - store_test_results:
+          path: << parameters.test-results-path >>
+  execute:
+    description: Calculate the difference of Rubocop results between HEAD branch and BASE branch
+    parameters:
+      executor:
+        description: Specify the image used to execute analysis
+        type: executor
+        default: default
+      analyze:
+        description: Specify analysis steps
+        type: steps
+        default:
+          - analyze
+      calculate:
+        description: Specify the steps for calculating the difference
+        type: steps
+        default:
+          - calculate
+      test-results-path:
+        description: Specify the value of the path parameter in the store_test_results step if you need to change it
+        type: string
+        default: "/tmp/test-results"
     executor: << parameters.executor >>
     steps:
       - execute:
-          prepare-to-execute: << parameters.prepare-to-execute >>
-          analysis-command-version: << parameters.analysis-command-version >>
-          analysis-arguments: << parameters.analysis-arguments >>
+          analyze: << parameters.analyze >>
+          calculate: << parameters.calculate >>
           test-results-path: << parameters.test-results-path >>
-          analysis-result-format: << parameters.analysis-result-format >>
 
 examples:
 
@@ -121,19 +239,18 @@ examples:
     usage:
       version: 2.1
       orbs:
-        dscar: naokikimura/dscar-rubocop@0.0.4
+        dscar: naokikimura/dscar-rubocop@0.5.0
       workflows:
         analyze-code-statically:
           jobs:
             - dscar-rubocop/execute:
                 name: rubocop
-
   older-than-v0_80:
     description: Example that cannot be executed unless it is older than v0.80
     usage:
       version: 2.1
       orbs:
-        dscar: naokikimura/dscar-rubocop@0.0.4
+        dscar: naokikimura/dscar-rubocop@0.5.0
       workflows:
         analyze-code-statically:
           jobs:
@@ -141,12 +258,14 @@ examples:
                 name: rubocop
                 executor:
                   name: dscar-rubocop/default
-                  docker-image: circleci/ruby:2.7.0
-                prepare-to-execute:
+                  docker-image: circleci/ruby:2.7.0-node
+                analyze:
+                  - dscar-rubocop/analyze:
+                      analysis-command-version: 0.68.1
+                      analysis-arguments: "-r /usr/local/lib/ruby/gems/2.7.0/gems/rubocop-0.80.0/lib/rubocop/formatter/junit_formatter.rb"
+                      analysis-result-format: "RuboCop::Formatter::JUnitFormatter"
+                pre-steps:
                     - run:
                         command: |
                           sudo gem uninstall -a rubocop-performance
                           sudo gem install rubocop-performance:1.3.0
-                analysis-command-version: 0.68.1
-                analysis-arguments: "-r /usr/local/lib/ruby/gems/2.7.0/gems/rubocop-0.80.0/lib/rubocop/formatter/junit_formatter.rb"
-                analysis-result-format: "RuboCop::Formatter::JUnitFormatter"
