@@ -3,7 +3,7 @@ version: 2.1
 description: Delta Rubocop Reports
 
 orbs:
-  dscar: naokikimura/dscar@0.5.1
+  dscar: naokikimura/dscar@0.5.2
 
 executors:
   default:
@@ -155,6 +155,14 @@ jobs:
         description: Check-out the BASE branch if true is specified
         type: boolean
         default: false
+      has-reconstructed:
+        description: Specify true if `compare-url/reconstruct` has not been executed yet
+        type: boolean
+        default: false
+      attach-compare-url-workspace:
+        description: "Attach a workspace for this command to use? Useful when `compare-url` orb's `reconstruct` job is called upstream in a given workflow"
+        type: boolean
+        default: false
       analyze:
         description: Specify analysis steps
         type: steps
@@ -172,6 +180,8 @@ jobs:
           is-target-branch-base: << parameters.is-target-branch-base >>
       - dscar/checkout-analysis-target:
           is-target-branch-base: << parameters.is-target-branch-base >>
+          has-reconstructed: << parameters.has-reconstructed >>
+          attach-compare-url-workspace: << parameters.attach-compare-url-workspace >>
       - steps: << parameters.analyze >>
       - store_test_results:
           path: << parameters.analysis-results-path >>
