@@ -3,7 +3,7 @@ version: 2.1
 description: Delta Rubocop Reports
 
 orbs:
-  dscar: naokikimura/dscar@0.5.4
+  dscar: naokikimura/dscar@0.6.1
 
 executors:
   default:
@@ -37,11 +37,6 @@ commands:
         description: Arguments of rubocop command
         type: string
         default: ""
-      analysis-result-format:
-        description: Specify "RuboCop::Formatter::JUnitFormatter" if you want to use a non-standard formatter
-        type: enum
-        enum: ["junit", "RuboCop::Formatter::JUnitFormatter"]
-        default: "junit"
       prepare:
         description: Specify the required steps before analysis if necessary
         type: steps
@@ -60,63 +55,40 @@ commands:
       - when:
           condition: << parameters.analysis-command-version >>
           steps:
-            - dscar/analyze:
+            - dscar/analyze: &analyze
                 step-name: Analyze code statically using Rubocop
                 analysis-command: rubocop
                 analysis-arguments: |
                         _<< parameters.analysis-command-version >>_
                         << parameters.analysis-arguments >>
-                        -f << parameters.analysis-result-format >>
+                        -f json
                         -C false
+                transformation-command: jq
+                prepare:
+                  - run: sudo apt-get install jq
+                  - run:
+                      name: export TRANSFORMATION_ARGUMENTS
+                      command: |
+                        set -x
+                        cat \<<-EOT >> $BASH_ENV
+                        export TRANSFORMATION_ARGUMENTS=(
+                          -rM
+                          '.files | map((@html "<file name=\"\(.path)\">")+"\( .offenses | map(@html "<error source=\"\(.cop_name)\" line=\"\(.location.line)\" column=\"\(.location.column)\" severity=\"\(.severity)\" message=\"\(.message)\" />") | join("") )</file>") | "<checkstyle>\(join(""))</checkstyle>"'
+                        )
+                        EOT
+                  - steps: << parameters.prepare >>
                 starting-points: << parameters.starting-points >>
-                prepare: << parameters.prepare >>
                 no-output-timeout: << parameters.no-output-timeout >>
                 redirecting-output: << parameters.redirecting-output >>
       - unless:
           condition: << parameters.analysis-command-version >>
           steps:
             - dscar/analyze:
-                step-name: Analyze code statically using Rubocop
-                analysis-command: rubocop
+                <<: *analyze
                 analysis-arguments: |
                         << parameters.analysis-arguments >>
-                        -f << parameters.analysis-result-format >>
+                        -f json
                         -C false
-                starting-points: << parameters.starting-points >>
-                prepare: << parameters.prepare >>
-                no-output-timeout: << parameters.no-output-timeout >>
-                redirecting-output: << parameters.redirecting-output >>
-  calculate:
-    description: |
-      Calculate the difference between the analysis results
-
-      Use the [junit-reports-combiner][1] command to calculate the difference
-
-      [1]: https://www.npmjs.com/package/junit-reports-combiner
-    parameters:
-      first-result-path:
-        description: Path of the file to use as the minuend
-        type: string
-        default: "HEAD-analysis-results.xml"
-      second-result-path:
-        description: Path of the file to use as the subtrahend
-        type: string
-        default: "BASE-analysis-results.xml"
-      delta-result-path:
-        description: Path to save difference of analysis results
-        type: string
-        default: "/dev/null"
-      should-install-node_js:
-        description: Specify true if the execution environment does not have Node.js installed
-        type: boolean
-        default: false
-    steps:
-      - dscar/calculate:
-          options: --test-case-key=concat(@classname,"#",@name,"=>",normalize-space())
-          first-result-path: << parameters.first-result-path >>
-          second-result-path: << parameters.second-result-path >>
-          delta-result-path: << parameters.delta-result-path >>
-          should-install-node_js: << parameters.should-install-node_js >>
   execute:
     description: Calculate the difference of Rubocop results between HEAD branch and BASE branch
     parameters:
@@ -142,11 +114,7 @@ commands:
         description: Specify the steps for calculating the difference
         type: steps
         default:
-          - calculate
-      test-results-path:
-        description: Specify the value of the path parameter in the store_test_results step if you need to change it
-        type: string
-        default: "/tmp/test-results"
+          - dscar/calculate
       project-path:
         description: "Absolute path to your project's base directory, necessary for running git commands (default: job’s working_directory)"
         type: string
@@ -160,7 +128,6 @@ commands:
           analyze: << parameters.analyze >>
           analysis-results-path: << parameters.analysis-results-path >>
           calculate: << parameters.calculate >>
-          test-results-path: << parameters.test-results-path >>
           project-path: << parameters.project-path >>
 
 jobs:
@@ -192,9 +159,13 @@ jobs:
         description: Specify the path to save the analysis results if you need to change it
         type: string
         default: "/tmp/analysis-results"
+      test-results-path:
+        description: Specify the value of the path parameter in the store_test_results step if you need to change it
+        type: string
+        default: "/tmp/test-results"
     executor: << parameters.executor >>
     steps:
-      - dscar/set-analysis-result-path:
+      - dscar/set-result-path:
           analysis-name: Rubocop
           analysis-results-path: << parameters.analysis-results-path >>
           is-target-branch-base: << parameters.is-target-branch-base >>
@@ -203,13 +174,20 @@ jobs:
           has-reconstructed: << parameters.has-reconstructed >>
           attach-compare-url-workspace: << parameters.attach-compare-url-workspace >>
       - steps: << parameters.analyze >>
-      - store_test_results:
-          path: << parameters.analysis-results-path >>
+      - when:
+          condition: << parameters.test-results-path >>
+          steps:
+            - dscar/transform:
+                analysis-name: Rubocop
+                analysis-results-path: << parameters.analysis-results-path >>
+                test-results-path: << parameters.test-results-path >>
+            - store_test_results:
+                path: << parameters.test-results-path >>
   calculate:
     description: |
       Calculate the difference between the analysis results
 
-      Use the [junit-reports-combiner][1] command to calculate the difference
+      Use the [checkstyle-reports-combiner][1] command to calculate the difference
 
       [1]: https://www.npmjs.com/package/junit-reports-combiner
     parameters:
@@ -221,7 +199,7 @@ jobs:
         description: Specify the steps for calculating the difference
         type: steps
         default:
-          - calculate
+          - dscar/calculate
       analysis-results-path:
         description: Specify the path to save the analysis results if you need to change it
         type: string
@@ -232,11 +210,15 @@ jobs:
         default: "/tmp/test-results"
     executor: << parameters.executor >>
     steps:
-      - dscar/set-result-paths:
+      - dscar/set-analysis-result-paths:
+          analysis-name: Rubocop
+          analysis-results-path: << parameters.analysis-results-path >>
+      - steps: << parameters.calculate >>
+      - dscar/transform:
           analysis-name: Rubocop
           analysis-results-path: << parameters.analysis-results-path >>
           test-results-path: << parameters.test-results-path >>
-      - steps: << parameters.calculate >>
+          pattern: '.*/DELTA-analysis-results\.xml$'
       - store_test_results:
           path: << parameters.test-results-path >>
   execute:
@@ -268,15 +250,11 @@ jobs:
         description: Specify the steps for calculating the difference
         type: steps
         default:
-          - calculate
+          - dscar/calculate
       test-results-path:
         description: Specify the value of the path parameter in the store_test_results step if you need to change it
         type: string
         default: "/tmp/test-results"
-      should-save-analysis-results-as-artifacts:
-        description: Specify true if analysis results should be saved as artifacts
-        type: boolean
-        default: false
     executor: << parameters.executor >>
     steps:
       - execute:
@@ -285,23 +263,21 @@ jobs:
           analyze: << parameters.analyze >>
           analysis-results-path: << parameters.analysis-results-path >>
           calculate: << parameters.calculate >>
+      - dscar/transform:
+          analysis-name: Rubocop
+          analysis-results-path: << parameters.analysis-results-path >>
           test-results-path: << parameters.test-results-path >>
+          pattern: '.*/DELTA-analysis-results\.xml$'
       - store_test_results:
           path: << parameters.test-results-path >>
-      - when:
-          condition: << parameters.should-save-analysis-results-as-artifacts >>
-          steps:
-            - store_artifacts:
-                path: << parameters.analysis-results-path >>
 
 examples:
-
   v0_80-or-newer:
     description: Example that can be executed in v0.80 or newer
     usage:
       version: 2.1
       orbs:
-        dscar: naokikimura/dscar-rubocop@0.5.4
+        dscar: naokikimura/dscar-rubocop@0.6.1
       workflows:
         analyze-code-statically:
           jobs:
@@ -312,7 +288,7 @@ examples:
     usage:
       version: 2.1
       orbs:
-        dscar: naokikimura/dscar-rubocop@0.5.4
+        dscar: naokikimura/dscar-rubocop@0.6.1
       workflows:
         analyze-code-statically:
           jobs:
@@ -324,8 +300,6 @@ examples:
                 analyze:
                   - dscar-rubocop/analyze:
                       analysis-command-version: 0.68.1
-                      analysis-arguments: "-r /usr/local/lib/ruby/gems/2.7.0/gems/rubocop-0.80.0/lib/rubocop/formatter/junit_formatter.rb"
-                      analysis-result-format: "RuboCop::Formatter::JUnitFormatter"
                 pre-steps:
                     - run:
                         command: |
