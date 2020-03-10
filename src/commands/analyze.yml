@@ -1,0 +1,66 @@
+description: Analyze code statically using Rubocop
+parameters:
+  starting-points:
+    description: Specify the path of starting to search for files to analyze (Multiple paths can be specified by separating them with line feed)
+    type: string
+    default: "."
+  analysis-command-version:
+    description: The command version used for analysis
+    type: string
+    default: ""
+  analysis-arguments:
+    description: Arguments of rubocop command
+    type: string
+    default: ""
+  prepare:
+    description: Specify the required steps before analysis if necessary
+    type: steps
+    default:
+      - run: sudo gem install rubocop rubocop-performance rubocop-rails
+  no-output-timeout:
+    description: Elapsed time the command can run without output. The string is a decimal with unit suffix, such as “20m”, “1.25h”, “5s”
+    type: string
+    default: 10m
+  redirecting-output:
+    description: Specify "/dev/null" if you do not want to display the analysis results on the standard output
+    type: enum
+    enum: ["/dev/stdout", "/dev/stderr", "/dev/null"]
+    default: "/dev/null"
+steps:
+  - when:
+      condition: << parameters.analysis-command-version >>
+      steps:
+        - dscar/analyze: &analyze
+            step-name: Analyze code statically using Rubocop
+            analysis-command: rubocop
+            analysis-arguments: |
+                    _<< parameters.analysis-command-version >>_
+                    << parameters.analysis-arguments >>
+                    -f json
+                    -C false
+            transformation-command: jq
+            prepare:
+              - run: sudo apt-get install jq
+              - run:
+                  name: export TRANSFORMATION_ARGUMENTS
+                  command: |
+                    set -x
+                    cat \<<-EOT >> $BASH_ENV
+                    export TRANSFORMATION_ARGUMENTS=(
+                      -rM
+                      '.files | map((@html "<file name=\"\(.path)\">")+"\( .offenses | map(@html "<error source=\"\(.cop_name)\" line=\"\(.location.line)\" column=\"\(.location.column)\" severity=\"\(.severity)\" message=\"\(.message)\" />") | join("") )</file>") | "<checkstyle>\(join(""))</checkstyle>"'
+                    )
+                    EOT
+              - steps: << parameters.prepare >>
+            starting-points: << parameters.starting-points >>
+            no-output-timeout: << parameters.no-output-timeout >>
+            redirecting-output: << parameters.redirecting-output >>
+  - unless:
+      condition: << parameters.analysis-command-version >>
+      steps:
+        - dscar/analyze:
+            <<: *analyze
+            analysis-arguments: |
+                    << parameters.analysis-arguments >>
+                    -f json
+                    -C false

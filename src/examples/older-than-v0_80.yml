@@ -1,0 +1,21 @@
+description: Example that cannot be executed unless it is older than v0.80
+usage:
+  version: 2.1
+  orbs:
+    dscar: naokikimura/dscar-rubocop@0.7.0
+  workflows:
+    analyze-code-statically:
+      jobs:
+        - dscar-rubocop/execute:
+            name: rubocop
+            executor:
+              name: dscar-rubocop/default
+              docker-image: circleci/ruby:2.7.0-node
+            analyze:
+              - dscar-rubocop/analyze:
+                  analysis-command-version: 0.68.1
+            pre-steps:
+                - run:
+                    command: |
+                      sudo gem uninstall -a rubocop-performance
+                      sudo gem install rubocop-performance:1.3.0
