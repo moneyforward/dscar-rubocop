@@ -17,6 +17,10 @@ parameters:
     type: steps
     default:
       - run: sudo gem install rubocop rubocop-performance rubocop-rails
+  result-path:
+    description: Path to save analysis result
+    type: string
+    default: "/dev/null"
   no-output-timeout:
     description: Elapsed time the command can run without output. The string is a decimal with unit suffix, such as “20m”, “1.25h”, “5s”
     type: string
@@ -53,6 +57,7 @@ steps:
                     EOT
               - steps: << parameters.prepare >>
             starting-points: << parameters.starting-points >>
+            result-path: << parameters.result-path >>
             no-output-timeout: << parameters.no-output-timeout >>
             redirecting-output: << parameters.redirecting-output >>
   - unless:
