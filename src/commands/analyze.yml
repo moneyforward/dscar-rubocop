@@ -16,7 +16,7 @@ parameters:
     description: Specify the required steps before analysis if necessary
     type: steps
     default:
-      - run: sudo gem install rubocop rubocop-performance rubocop-rails
+      - install-analyzer
   result-path:
     description: Path to save analysis result
     type: string

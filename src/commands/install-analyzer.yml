@@ -1,0 +1,3 @@
+description: Install Rubocop
+steps:
+  - run: sudo gem install rubocop rubocop-performance rubocop-rails
