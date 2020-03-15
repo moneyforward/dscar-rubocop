@@ -39,6 +39,10 @@ parameters:
     type: enum
     enum: ["/dev/stdout", "/dev/stderr", "/dev/null"]
     default: "/dev/null"
+  max-procs:
+    description: Specify the maximum number of processes to run at the same time
+    type: integer
+    default: 1
 steps:
   - when:
       condition: << parameters.analysis-command-version >>
@@ -72,6 +76,7 @@ steps:
             result-path: << parameters.result-path >>
             no-output-timeout: << parameters.no-output-timeout >>
             redirecting-output: << parameters.redirecting-output >>
+            max-procs: << parameters.max-procs >>
   - unless:
       condition: << parameters.analysis-command-version >>
       steps:

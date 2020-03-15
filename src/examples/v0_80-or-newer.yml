@@ -2,9 +2,14 @@ description: Example that can be executed in v0.80 or newer
 usage:
   version: 2.1
   orbs:
-    dscar: naokikimura/dscar-rubocop@0.7.1
+    dscar: naokikimura/dscar-rubocop@0.8.1
   workflows:
     analyze-code-statically:
       jobs:
         - dscar-rubocop/execute:
             name: rubocop
+            executor:
+              name: dscar-rubocop/default
+              project-git_url: << pipeline.project.git_url >>
+              git-base_revision: << pipeline.git.base_revision >>
+              git-revision: << pipeline.git.revision >>
