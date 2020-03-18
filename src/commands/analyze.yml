@@ -55,6 +55,7 @@ steps:
                     << parameters.analysis-arguments >>
                     -f json
                     -C false
+                    --force-exclusion
             transformation-command: jq
             prepare:
               - run: sudo apt-get install jq
@@ -86,3 +87,4 @@ steps:
                     << parameters.analysis-arguments >>
                     -f json
                     -C false
+                    --force-exclusion
