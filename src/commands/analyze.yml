@@ -30,6 +30,10 @@ parameters:
     description: Path to save analysis result
     type: string
     default: "/dev/null"
+  error-pattern:
+    description: Specify the pattern if you want to detect analyzing errors from the standard error
+    type: string
+    default: '.*'
   no-output-timeout:
     description: Elapsed time the command can run without output. The string is a decimal with unit suffix, such as “20m”, “1.25h”, “5s”
     type: string
@@ -56,6 +60,7 @@ steps:
                     -f json
                     -C false
                     --force-exclusion
+            error-pattern: << parameters.error-pattern >>
             transformation-command: jq
             prepare:
               - run: sudo apt-get install jq
