@@ -2,7 +2,7 @@ description: Example that can be executed in v0.80 or newer
 usage:
   version: 2.1
   orbs:
-    dscar: naokikimura/dscar-rubocop@0.8.1
+    dscar: naokikimura/dscar-rubocop@0.8.5
   workflows:
     analyze-code-statically:
       jobs:
