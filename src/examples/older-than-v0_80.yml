@@ -2,7 +2,7 @@ description: Example that cannot be executed unless it is older than v0.80
 usage:
   version: 2.1
   orbs:
-    dscar: naokikimura/dscar-rubocop@0.8.5
+    dscar: moneyforward/dscar-rubocop@x.y.z
   workflows:
     analyze-code-statically:
       jobs:
