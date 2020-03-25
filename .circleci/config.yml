@@ -17,13 +17,16 @@ workflows:
     jobs:
       - orb-tools/lint
       - orb-tools/pack:
+          context: dscar
           requires:
             - orb-tools/lint
       - orb-tools/publish-dev:
+          context: dscar
           orb-name: moneyforward/dscar
           requires:
             - orb-tools/pack
       - orb-tools/trigger-integration-tests-workflow:
+          context: dscar
           name: trigger-integration-dev
           requires:
             - orb-tools/publish-dev
