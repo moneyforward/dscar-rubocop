@@ -37,7 +37,7 @@ workflows:
             - orb-tools/lint
       - orb-tools/publish-dev:
           context: dscar
-          orb-name: moneyforward/dscar
+          orb-name: moneyforward/dscar-rubocop
           requires:
             - orb-tools/pack
       - orb-tools/trigger-integration-tests-workflow:

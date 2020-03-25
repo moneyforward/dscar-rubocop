@@ -69,12 +69,18 @@ steps:
                   name: export TRANSFORMATION_ARGUMENTS
                   command: |
                     set -x
-                    cat \<<-EOT >> $BASH_ENV
-                    export TRANSFORMATION_ARGUMENTS=(
-                      -srM
-                      'map(.files)| flatten | map((@html "<file name=\"\(.path)\">")+"\( .offenses | map(@html "<error source=\"\(.cop_name)\" line=\"\(.location.line)\" column=\"\(.location.column)\" severity=\"\(.severity)\" message=\"\(.message)\" />") | join("") )</file>") | "<checkstyle>\(join(""))</checkstyle>"'
-                    )
+                    FILTER="$(
+                    cat \<<-EOT | tr -s ' \n' ' '
+                    map(.files) | flatten | map(
+                      (@html "<file name=\"\(.path)\">") +
+                      "\(.offenses | map(
+                        @html "<error source=\"\(.cop_name)\" line=\"\(.location.line)\" column=\"\(.location.column)\" severity=\"\(.severity)\" message=\"\(.message)\" />"
+                      ) | join(""))</file>"
+                    ) | "<checkstyle>\(join(""))</checkstyle>"
                     EOT
+                    )"
+                    declare -ax TRANSFORMATION_ARGUMENTS=( -srM "$FILTER" )
+                    echo "$(declare -p TRANSFORMATION_ARGUMENTS)" >> $BASH_ENV
               - steps: << parameters.prepare >>
             should-find: "true"
             starting-points: << parameters.starting-points >>
