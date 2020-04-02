@@ -1,5 +1,7 @@
 # dscar-rubocop
 
+[![CircleCI](https://circleci.com/gh/moneyforward/dscar-rubocop.svg?style=svg)](https://circleci.com/gh/moneyforward/dscar-rubocop)
+
 Delta [RuboCop](https://github.com/rubocop-hq/rubocop) reports running on CircleCI
 
 See https://circleci.com/orbs/registry/orb/moneyforward/dscar-rubocop for details.
