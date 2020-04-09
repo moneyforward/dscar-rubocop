@@ -35,8 +35,17 @@ create:
 
 .INTERMEDIATE: .circleci/compiled-config.yml
 .circleci/compiled-config.yml: publish
-	circleci config process .circleci/config.yml >.circleci/compiled-config.yml
+	circleci config process .circleci/config.yml > $@
 
 .PHONY: integration-test-1
 integration-test-1: .circleci/compiled-config.yml
-	circleci local execute -c .circleci/compiled-config.yml --job integration-test-1
+	circleci local execute -c $< --job $@
+
+.PHONY: integration-test-2
+integration-test-2: .circleci/compiled-config.yml
+	circleci local execute -c $< --job $@
+
+.PHONY: integration-test
+integration-test: \
+	integration-test-1 \
+	integration-test-2

@@ -47,23 +47,33 @@ parameters:
     description: Specify the maximum number of processes to run at the same time
     type: integer
     default: 1
+  should-use-bundler:
+    description: Specify true if you want to perform analysis using Bundler
+    type: boolean
+    default: false
 steps:
   - when:
-      condition: << parameters.analysis-command-version >>
+      condition: << parameters.should-use-bundler >>
       steps:
         - dscar/analyze: &analyze
             step-name: Analyze code statically using Rubocop
             analysis-name: Rubocop
-            analysis-command: rubocop
+            analysis-command: bundle
             analysis-arguments: |
-                    _<< parameters.analysis-command-version >>_
-                    << parameters.analysis-arguments >>
-                    -f json
-                    -C false
-                    --force-exclusion
+              exec
+              rubocop
+              << parameters.analysis-arguments >>
+              -f json
+              -C false
+              --force-exclusion
             error-pattern: << parameters.error-pattern >>
             transformation-command: jq
             prepare:
+              - steps: << parameters.prepare >>
+              - when:
+                  condition: << parameters.should-use-bundler >>
+                  steps:
+                    - run: bundle install
               - run: sudo apt-get install jq
               - run:
                   name: export TRANSFORMATION_ARGUMENTS
@@ -81,7 +91,6 @@ steps:
                     )"
                     declare -ax TRANSFORMATION_ARGUMENTS=( -srM "$FILTER" )
                     echo "$(declare -p TRANSFORMATION_ARGUMENTS)" >> $BASH_ENV
-              - steps: << parameters.prepare >>
             should-find: "true"
             starting-points: << parameters.starting-points >>
             patterns-to-include: << parameters.patterns-to-include >>
@@ -91,11 +100,27 @@ steps:
             redirecting-output: << parameters.redirecting-output >>
             max-procs: << parameters.max-procs >>
   - unless:
-      condition: << parameters.analysis-command-version >>
+      condition: << parameters.should-use-bundler >>
       steps:
-        - dscar/analyze:
-            <<: *analyze
-            analysis-arguments: |
+        - when:
+            condition: << parameters.analysis-command-version >>
+            steps:
+              - dscar/analyze:
+                  <<: *analyze
+                  analysis-command: rubocop
+                  analysis-arguments: |
+                    _<< parameters.analysis-command-version >>_
+                    << parameters.analysis-arguments >>
+                    -f json
+                    -C false
+                    --force-exclusion
+        - unless:
+            condition: << parameters.analysis-command-version >>
+            steps:
+              - dscar/analyze:
+                  <<: *analyze
+                  analysis-command: rubocop
+                  analysis-arguments: |
                     << parameters.analysis-arguments >>
                     -f json
                     -C false
