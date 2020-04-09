@@ -1,3 +1,16 @@
 description: Install Rubocop
 steps:
-  - run: sudo gem install rubocop rubocop-performance rubocop-rails
+  - run:
+      name: Install Rubocop
+      command: |
+        set -x
+        if [ -e 'Gemfile.lock' ]
+        then
+          {
+            grep '^\s\{4\}rubocop\b' |
+            sed -e 's/^\s\{4\}\(rubocop\b\S*\) (\(.*\))$/\1:\2/'
+          } < Gemfile.lock
+        else
+          echo rubocop rubocop-performance rubocop-rails
+        fi |
+        xargs -t sudo gem install
