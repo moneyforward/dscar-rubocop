@@ -45,7 +45,12 @@ integration-test-1: .circleci/compiled-config.yml
 integration-test-2: .circleci/compiled-config.yml
 	circleci local execute -c $< --job $@
 
+.PHONY: integration-test-3
+integration-test-3: .circleci/compiled-config.yml
+	circleci local execute -c $< --job $@
+
 .PHONY: integration-test
 integration-test: \
 	integration-test-1 \
-	integration-test-2
+	integration-test-2 \
+	integration-test-3
